@@ -1,0 +1,176 @@
+<html>
+<head>
+<script src="pdfkit.standalone.min.js"></script>
+<script src="blob-stream.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@2.2.228/build/pdf.min.js"></script>
+<style>
+.hidden {
+	display:none;
+}
+#previewImg {
+	max-width:500px;
+	max-height:700px;
+}
+#uploadLabel,#upload {
+	font-size:2em;
+}
+#downloadCurrentState {
+	display:block;
+	font-size:2em;
+}
+</style>
+</head>
+<body>
+
+
+<section id="imgPreviewSection" class="hidden">
+	<p>You just uploaded: </p>
+	<img class="hidden" id="previewImg" src="http://placehold.it/75X75"/>
+	<canvas class="hidden" id="pdfCanvas"></canvas>
+	<button id="downloadCurrentState">Download PDF</button>
+	<span id="pleaseWait" class="hidden">Generating PDF Please wait...</span>
+</section>
+
+
+<label id="uploadLabel" for="upload">Upload a pdf or image:</label>
+<input id="upload" type="file" accept="application/pdf,image/*">
+<script>
+
+const img=document.getElementById("previewImg")
+const imgPreviewSection=document.getElementById('imgPreviewSection')
+const downloadBtn=document.getElementById("downloadCurrentState")
+const waitMsg=document.getElementById('pleaseWait')
+let pages=0;
+document.getElementById("upload").addEventListener("change",readUploadedFile);
+const pdfCanvas = document.getElementById("pdfCanvas");
+function readUploadedFile(e) {
+
+      var reader = new FileReader()
+			let type=''
+      reader.onload = function(loadEvent) {
+				imgPreviewSection.classList.remove("hidden")
+				if(type.startsWith('image/')) {
+					loadImage(loadEvent.target.result)
+				} else {
+					loadPdf(loadEvent.target.result)
+				}
+				e.target.value=''
+      };
+      if(e.target.files.length == 1) {
+        const f = e.target.files[0];
+				type=f.type
+				console.log(f)
+				if(type.startsWith('image/')) {
+					reader.readAsDataURL(f);
+				} else {
+					reader.readAsBinaryString(f); 
+				}
+				
+      }
+}
+function loadPdf(bString) {
+	let b64payload = btoa(bString);
+	renderPDf(bString)
+}
+
+function loadImage(dataUrl) {
+	//render the image initially uncompressed
+	img.src = dataUrl;
+	img.classList.remove('hidden')
+	//compress and resize the image
+	img.onload = () => {
+					const elem = document.createElement('canvas');
+					elem.width = img.width;
+					elem.height = img.height;
+					const ctx = elem.getContext('2d');
+					ctx.drawImage(img, 0, 0, img.width, img.height);
+					/*ctx.canvas.toBlob((blob) => {
+							const file = new File([blob], fileName, {
+									type: 'image/jpeg',
+									lastModified: Date.now()
+							});
+					}, 'image/jpeg', 1);*/
+					console.log(img.width,' ',img.height)
+					addImageToPdf(ctx.canvas.toDataURL(img, 'image/jpeg', 0.9),35)
+			}
+}
+
+const doc = new PDFDocument({margin:0});
+const stream = doc.pipe(blobStream());
+function addImageToPdf(url,margin=35) {
+	if(pages>0 || margin > 0) {
+		if(pages==0) {
+			 doc.fontSize(25)
+			 .text('Obligatory cover page, please scroll down...', 100, 100);
+		}
+		doc.addPage({margin})
+	}
+	doc.image(url, {
+   align: 'left',
+   valign: 'top'
+});
+pages++
+document.getElementById('uploadLabel').innerText="Or Upload another page: "
+}
+
+function finish() {
+	doc.end();
+	stream.on('finish', function() {
+		// get a blob you can do whatever you like with
+		const blob = stream.toBlob('application/pdf');
+		const link = document.createElement('a');
+		link.href = URL.createObjectURL(blob);
+  link.download = 'my-pdf.pdf';
+	link.click()
+	link.remove()
+	waitMsg.innerText="Downloading..."
+  // in case the Blob uses a lot of memory
+	
+  //window.addEventListener('focus', e=>URL.revokeObjectURL(link.href), {once:true});
+
+		// or get a blob URL for display in the browser
+		//const url = stream.toBlobURL('application/pdf');
+		//iframe.src = url;
+	});
+}
+
+function renderPDf(data) {
+(async () => {
+  const loadingTask = pdfjsLib.getDocument({data});
+  const pdf = await loadingTask.promise;
+
+  // Load information from the first page.
+  const page = await pdf.getPage(1);
+
+  const scale = 1;
+  const viewport = page.getViewport({scale});
+
+  // Apply page dimensions to the <canvas> element.
+  
+  const context = pdfCanvas.getContext("2d");
+  pdfCanvas.height = viewport.height;
+  pdfCanvas.width = viewport.width;
+	var renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    };
+  // Render the page into the <canvas> element.
+  var renderTask = page.render(renderContext);
+    renderTask.promise.then(function () {
+			pdfCanvas.classList.remove('hidden')
+			addImageToPdf(context.canvas.toDataURL(img, 'image/jpeg', 1),0)
+      console.log('Page rendered');
+    });
+})();
+}
+
+downloadBtn.addEventListener("click",function() {
+				downloadBtn.classList.add('hidden')
+				waitMsg.classList.remove('hidden')
+				document.getElementById('uploadLabel').classList.add('hidden')
+				document.getElementById('upload').classList.add('hidden')
+finish()						
+	});
+</script>
+</body>
+</html>
