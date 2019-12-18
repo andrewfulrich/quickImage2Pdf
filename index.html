@@ -138,29 +138,33 @@ function renderPDf(data) {
 (async () => {
   const loadingTask = pdfjsLib.getDocument({data});
   const pdf = await loadingTask.promise;
+	const numPages=pdf.numPages
+	for(var i=1; i <= numPages; i++) {
+		await renderPage(i)
+	}
 
-  // Load information from the first page.
-  const page = await pdf.getPage(1);
+	async function renderPage(pageNum) {
+		// Load information from the first page.
+		const page = await pdf.getPage(pageNum);
 
-  const scale = 1;
-  const viewport = page.getViewport({scale});
+		const scale = 1;
+		const viewport = page.getViewport({scale});
 
-  // Apply page dimensions to the <canvas> element.
-  
-  const context = pdfCanvas.getContext("2d");
-  pdfCanvas.height = viewport.height;
-  pdfCanvas.width = viewport.width;
-	var renderContext = {
-      canvasContext: context,
-      viewport: viewport
-    };
-  // Render the page into the <canvas> element.
-  var renderTask = page.render(renderContext);
-    renderTask.promise.then(function () {
-			pdfCanvas.classList.remove('hidden')
-			addImageToPdf(context.canvas.toDataURL(img, 'image/jpeg', 1),0)
-      console.log('Page rendered');
-    });
+		// Apply page dimensions to the <canvas> element.
+		
+		const context = pdfCanvas.getContext("2d");
+		pdfCanvas.height = viewport.height;
+		pdfCanvas.width = viewport.width;
+		var renderContext = {
+				canvasContext: context,
+				viewport: viewport
+			};
+		// Render the page into the <canvas> element.
+		await page.render(renderContext);
+		pdfCanvas.classList.remove('hidden')
+		addImageToPdf(context.canvas.toDataURL(img, 'image/jpeg', 1),0)
+		console.log('Page'+pageNum+' rendered');
+	}
 })();
 }
 
